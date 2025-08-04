@@ -17,17 +17,13 @@
 
  The Initial Developer of the Original Code is
  Mark J Crane <markjcrane@fusionpbx.com>
- Portions created by the Initial Developer are Copyright (C) 2008-2023
+ Portions created by the Initial Developer are Copyright (C) 2008-2025
  the Initial Developer. All Rights Reserved.
 
  Contributor(s):
  Mark J Crane <markjcrane@fusionpbx.com>
  Luis Daniel Lucio Quiroz <dlucio@okay.com.mx>
 */
-
- ini_set('display_errors', '1');
-ini_set('display_startup_errors', '1');
-error_reporting(E_ALL);
 
 //includes files
 	require_once dirname(__DIR__, 2) . "/resources/require.php";
@@ -74,44 +70,29 @@ error_reporting(E_ALL);
 		$domain_name = strtolower($_POST["domain_name"]);
 		$domain_enabled = $_POST["domain_enabled"] ?? 'false';
 		$domain_description = $_POST["domain_description"];
-		$astpp_customer     = $_POST['astpp_customer'];
-
-		$gateway_uuid = uuid();
-		$gateway_name		=	$_POST['gateway_name'];
-		$gateway_username   =   $_POST['gateway_username'];
-		$gateway_password	=	$_POST['gateway_password'];
-		$proxy_IP = "162.211.123.14";
-	    $expire_seconds       = 800;
-	    $register             = 'true';
-	    $retry_seconds        = 30;
-	    $caller_id_in_from    = 'true';
-	    $context              = 'public';
-	    $profile              = 'external';
-	    $enabled              = 'true';
-
 	}
 
 //process the data
 	if (!empty($_POST) && empty($_POST["persistformvar"])) {
 
 		//get the domain_uuid
-			if ($action == "update" && $_POST["domain_uuid"]) {
+			if ($action == "update" && !empty($_POST["domain_uuid"]) && is_uuid($_POST["domain_uuid"])) {
 				$domain_uuid = $_POST["domain_uuid"];
 			}
 
 		//delete the domain
-			if (permission_exists('domain_delete')) {
-				if (!empty($_POST['action']) && $_POST['action'] == 'delete' && is_uuid($domain_uuid)) {
-					//prepare
-						$array[0]['checked'] = 'true';
-						$array[0]['uuid'] = $domain_uuid;
-					//delete
-						$obj = new domains;
-						$obj->delete($array);
-					//redirect
-						header('Location: domains.php');
-						exit;
-				}
+			if (permission_exists('domain_delete') && !empty($_POST['action']) && $_POST['action'] == 'delete' && is_uuid($domain_uuid)) {
+				//prepare
+				$array[0]['checked'] = 'true';
+				$array[0]['uuid'] = $domain_uuid;
+
+				//delete
+				$obj = new domains;
+				$obj->delete($array);
+
+				//redirect
+				header('Location: domains.php');
+				exit;
 			}
 
 		//validate the token
@@ -141,6 +122,8 @@ error_reporting(E_ALL);
 
 		//add or update the database
 			if (empty($_POST["persistformvar"])) {
+
+				//add a domain to the database
 				if ($action == "add" && permission_exists('domain_add')) {
 					$sql = "select count(*) from v_domains ";
 					$sql .= "where lower(domain_name) = :domain_name ";
@@ -151,56 +134,52 @@ error_reporting(E_ALL);
 					if ($num_rows == 0) {
 
 						//add the domain name
-							$domain_enabled = 'true';
-							$domain_uuid = uuid();
+						$domain_enabled = 'true';
+						$domain_uuid = uuid();
 
 						//build the domain array
-							$array['domains'][0]['domain_uuid'] = $domain_uuid;
-							$array['domains'][0]['domain_name'] = $domain_name;
-							$array['domains'][0]['domain_enabled'] = $domain_enabled;
-							$array['domains'][0]['domain_description'] = $domain_description;
-							$array['domains'][0]['astpp_customer'] = $astpp_customer;
+						$array['domains'][0]['domain_uuid'] = $domain_uuid;
+						$array['domains'][0]['domain_name'] = $domain_name;
+						$array['domains'][0]['domain_enabled'] = $domain_enabled;
+						$array['domains'][0]['domain_description'] = $domain_description;
 
 						//create a copy of the domain array as the database save method empties the array that we still need.
-							$domain_array = $array;
+						$domain_array = $array;
 
 						//add the new domain
-							$database->app_name = 'domains';
-							$database->app_uuid = '8b91605b-f6d2-42e6-a56d-5d1ded01bb44';
-							$database->save($array);
+						$database->app_name = 'domains';
+						$database->app_uuid = '8b91605b-f6d2-42e6-a56d-5d1ded01bb44';
+						$database->save($array);
 
 						//add dialplans to the domain
-							if (file_exists($_SERVER["PROJECT_ROOT"]."/app/dialplans/app_config.php")) {
-								//import the dialplans
-								$dialplan = new dialplan;
-								$dialplan->import($domain_array['domains']);
-								unset($array);
+						if (file_exists($_SERVER["PROJECT_ROOT"]."/app/dialplans/app_config.php")) {
+							//import the dialplans
+							$dialplan = new dialplan;
+							$dialplan->import($domain_array['domains']);
+							unset($array);
 
-								//add xml for each dialplan where the dialplan xml is empty
-								$dialplans = new dialplan;
-								$dialplans->source = "details";
-								$dialplans->destination = "database";
-								$dialplans->context = $domain_name;
-								$dialplans->is_empty = "dialplan_xml";
-								$array = $dialplans->xml();
-							}
-
-							 $astpp_update = "UPDATE accounts set domain_id = '" . $domain_uuid . "' , domain_name = '" . $domain_name . "' where number= '" . $astpp_customer . "'";
-                			$done         = mysqli_query($conn, $astpp_update);
+							//add xml for each dialplan where the dialplan xml is empty
+							$dialplans = new dialplan;
+							$dialplans->source = "details";
+							$dialplans->destination = "database";
+							$dialplans->context = $domain_name;
+							$dialplans->is_empty = "dialplan_xml";
+							$array = $dialplans->xml();
+						}
 
 						//create the recordings directory for the new domain.
-							if (isset($_SESSION['switch']['recordings']['dir']) && !empty($_SESSION['switch']['recordings']['dir'])) {
-								if (!file_exists($_SESSION['switch']['recordings']['dir']."/".$domain_name)) {
-									mkdir($_SESSION['switch']['recordings']['dir']."/".$domain_name, 0770);
-								}
+						if (isset($_SESSION['switch']['recordings']['dir']) && !empty($_SESSION['switch']['recordings']['dir'])) {
+							if (!file_exists($_SESSION['switch']['recordings']['dir']."/".$domain_name)) {
+								mkdir($_SESSION['switch']['recordings']['dir']."/".$domain_name, 0770);
 							}
+						}
 
 						//create the voicemail directory for the new domain.
-							if (isset($_SESSION['switch']['voicemail']['dir']) && !empty($_SESSION['switch']['voicemail']['dir'])) {
-								if (!file_exists($_SESSION['switch']['voicemail']['dir']."/default/".$domain_name)) {
-									mkdir($_SESSION['switch']['voicemail']['dir']."/default/".$domain_name, 0770);
-								}
+						if (isset($_SESSION['switch']['voicemail']['dir']) && !empty($_SESSION['switch']['voicemail']['dir'])) {
+							if (!file_exists($_SESSION['switch']['voicemail']['dir']."/default/".$domain_name)) {
+								mkdir($_SESSION['switch']['voicemail']['dir']."/default/".$domain_name, 0770);
 							}
+						}
 
 					}
 					else {
@@ -208,110 +187,9 @@ error_reporting(E_ALL);
 						header("Location: domains.php");
 						exit;
 					}
-
 				}
 
-			 if (!empty($_SESSION['limit']['gateways']['numeric'])) {
-				$sql = "select count(gateway_uuid) from v_gateways ";
-				$sql .= "where (domain_uuid = :domain_uuid ".(permission_exists('gateway_domain') ? " or domain_uuid is null " : null).") ";
-				$parameters['domain_uuid'] = $_SESSION['domain_uuid'];
-				$database = new database;
-				$total_gateways = $database->select($sql, $parameters, 'column');
-				unset($sql, $parameters);
-				if ($total_gateways >= $_SESSION['limit']['gateways']['numeric']) {
-					message::add($text['message-maximum_gateways'].' '.$_SESSION['limit']['gateways']['numeric'], 'negative');
-					header('Location: gateways.php');
-					exit;
-				}
-			}
-
-            $x = 0;
-            $array['gateways'][$x]["domain_uuid"] = is_uuid($domain_uuid) ? $domain_uuid : null;
-			$array['gateways'][$x]["gateway_uuid"] = $gateway_uuid;
-			$array['gateways'][$x]["gateway"] = $gateway_name;
-			$array['gateways'][$x]["username"] = $gateway_username;
-			$array['gateways'][$x]["password"] = $gateway_password;
-			$array['gateways'][$x]["distinct_to"] = NULL;
-			$array['gateways'][$x]["auth_username"] = NULL;
-			$array['gateways'][$x]["realm"] = NULL;
-			$array['gateways'][$x]["from_user"] = NUll;
-			$array['gateways'][$x]["from_domain"] = NULL;
-			$array['gateways'][$x]["proxy"] = $proxy_IP;
-			$array['gateways'][$x]["register_proxy"] = NULL;
-			$array['gateways'][$x]["outbound_proxy"] = NULL;
-			$array['gateways'][$x]["expire_seconds"] = $expire_seconds;
-			$array['gateways'][$x]["register"] = $register;
-			$array['gateways'][$x]["register_transport"] = NULL;
-			$array['gateways'][$x]["contact_params"] = NULL;
-			$array['gateways'][$x]["retry_seconds"] = $retry_seconds;
-			$array['gateways'][$x]["extension"] = NULL;
-			$array['gateways'][$x]["ping"] = NULL;
-			$array['gateways'][$x]["ping_min"] = NULL;
-			$array['gateways'][$x]["ping_max"] = NULL;
-			$array['gateways'][$x]["contact_in_ping"] = NULL;
-			$array['gateways'][$x]["channels"] = 0;
-			$array['gateways'][$x]["caller_id_in_from"] = 'true';
-			$array['gateways'][$x]["supress_cng"] = NULL;
-			$array['gateways'][$x]["sip_cid_type"] = NULL;
-			$array['gateways'][$x]["codec_prefs"] = NULL;
-			$array['gateways'][$x]["extension_in_contact"] = NULL;
-			$array['gateways'][$x]["context"] = $context;
-			$array['gateways'][$x]["profile"] = $profile;
-			$array['gateways'][$x]["hostname"] = empty($hostname) ? null : $hostname;
-			$array['gateways'][$x]["enabled"] = $enabled;
-			$array['gateways'][$x]["description"] = NULL;
-
-			//update gateway session variable
-					if ($enabled == 'true') {
-						$_SESSION['gateways'][$gateway_uuid] = $gateway_name;
-					}
-					else {
-						unset($_SESSION['gateways'][$gateway_uuid]);
-					}
-
-
-            //save to the data
-					$database = new database;
-					$database->app_name = 'gateways';
-					$database->app_uuid = '297ab33e-2c2f-8196-552c-f3567d2caaf8';
-					if (is_uuid($gateway_uuid)) {
-						$database->uuid($gateway_uuid);
-					}
-					$database->save($array);
-					$message = $database->message;
-
-				//remove xml file (if any) if not enabled
-					if ($enabled != 'true' && !empty($_SESSION['switch']['sip_profiles']['dir'])) {
-						$gateway_xml_file = $_SESSION['switch']['sip_profiles']['dir']."/".$profile."/v_".$gateway_uuid.".xml";
-						if (file_exists($gateway_xml_file)) {
-							unlink($gateway_xml_file);
-						}
-					}
-
-				//syncrhonize configuration
-					save_gateway_xml();
-
-				//clear the cache
-					$esl = event_socket::create();
-					$hostname = trim(event_socket::api('switchname'));
-					$cache = new cache;
-					$cache->delete("configuration:sofia.conf:".$hostname);
-
-				//rescan the external profile to look for new or stopped gateways
-					//create the event socket connection
-						$esl = event_socket::create();
-						$response = event_socket::api('sofia profile external rescan');
-						usleep(1000);
-					//clear the apply settings reminder
-						$_SESSION["reload_xml"] = false;
-           
-            
-
-		
-
-
-
-
+				//update the domain
 				if ($action == "update" && permission_exists('domain_edit')) {
 
 					//get original domain name
@@ -326,13 +204,9 @@ error_reporting(E_ALL);
 						$array['domains'][0]['domain_name'] = $domain_name;
 						$array['domains'][0]['domain_enabled'] = $domain_enabled;
 						$array['domains'][0]['domain_description'] = $domain_description;
-						$array['domains'][0]['astpp_customer'] = $astpp_customer;
 						$database->app_name = 'domains';
 						$database->app_uuid = '8b91605b-f6d2-42e6-a56d-5d1ded01bb44';
 						$database->save($array);
-
-						$astpp_update = "UPDATE accounts set domain_id = '" . $domain_uuid . "' , domain_name = '" . $domain_name . "' where number= '" . $astpp_customer . "'";
-            			$done         = mysqli_query($conn, $astpp_update);
 
 					//add dialplans to the domain
 						if (file_exists($_SERVER["PROJECT_ROOT"]."/app/dialplans/app_config.php")) {
@@ -377,7 +251,9 @@ error_reporting(E_ALL);
 						//update destinations
 							if (file_exists($_SERVER["PROJECT_ROOT"]."/app/destinations/app_config.php")) {
 								$sql = "update v_destinations set ";
-								$sql .= "destination_data = replace(destination_data, :destination_data_old, :destination_data_new) ";
+								$sql .= "destination_data = replace(destination_data, :destination_data_old, :destination_data_new), ";
+								$sql .= "destination_conditions = replace(destination_conditions::text, :destination_data_old, :destination_data_new)::json, ";
+								$sql .= "destination_actions = replace(destination_actions::text, :destination_data_old, :destination_data_new)::json ";
 								$sql .= "where domain_uuid = :domain_uuid ";
 								$parameters['destination_data_old'] = $original_domain_name;
 								$parameters['destination_data_new'] = $domain_name;
@@ -455,19 +331,6 @@ error_reporting(E_ALL);
 								$sql .= "and domain_uuid = :domain_uuid ";
 								$parameters['context_old'] = $original_domain_name;
 								$parameters['context_new'] = $domain_name;
-								$parameters['domain_uuid'] = $domain_uuid;
-								$database->execute($sql, $parameters);
-								unset($sql, $parameters);
-							}
-
-						//update billing, if installed
-							if (file_exists($_SERVER["PROJECT_ROOT"]."/app/billing/app_config.php")){
-								$sql = "update v_billings set ";
-								$sql .= "type_value = :type_value_new ";
-								$sql .= "where type_value = :type_value_old ";
-								$sql .= "and domain_uuid = :domain_uuid ";
-								$parameters['type_value_old'] = $original_domain_name;
-								$parameters['type_value_new'] = $domain_name;
 								$parameters['domain_uuid'] = $domain_uuid;
 								$database->execute($sql, $parameters);
 								unset($sql, $parameters);
@@ -615,7 +478,6 @@ error_reporting(E_ALL);
 
 						//recreate dialplan and extension xml files
 							if (is_readable($_SESSION['switch']['extensions']['dir'])) {
-								require_once $_SERVER["DOCUMENT_ROOT"].PROJECT_PATH."/app/extensions/resources/classes/extension.php";
 								$extension = new extension;
 								$extension->xml();
 							}
@@ -647,15 +509,15 @@ error_reporting(E_ALL);
 				if ($action == "update") {
 					message::add($text['message-update']);
 					if (!permission_exists('domain_add')) { //admin, updating own domain
-						 header("Location: domain_edit.php");
+						header("Location: domain_edit.php");
 					}
 					else {
-						 header("Location: domains.php"); //superadmin
+						header("Location: domains.php"); //superadmin
 					}
 				}
 				if ($action == "add") {
 					message::add($text['message-add']);
-					 header("Location: domains.php");
+					header("Location: domains.php");
 				}
 				exit;
 			}
@@ -668,7 +530,6 @@ error_reporting(E_ALL);
 		$sql .= "domain_name, ";
 		$sql .= "cast(domain_enabled as text), ";
 		$sql .= "domain_description ";
-		$sql .= "astpp_customer ";
 		$sql .= "from v_domains ";
 		$sql .= "where domain_uuid = :domain_uuid ";
 		$parameters['domain_uuid'] = $domain_uuid;
@@ -677,7 +538,6 @@ error_reporting(E_ALL);
 			$domain_name = strtolower($row["domain_name"]);
 			$domain_enabled = $row["domain_enabled"];
 			$domain_description = $row["domain_description"];
-			$astpp_customer = $row["astpp_customer"];
 		}
 		unset($sql, $parameters, $row);
 	}
@@ -754,13 +614,13 @@ error_reporting(E_ALL);
 	echo "	<div class='actions'>\n";
 
 	if (permission_exists('domain_add')) {
-		echo button::create(['type'=>'button','label'=>$text['button-back'],'icon'=>$_SESSION['theme']['button_icon_back'],'id'=>'btn_back','style'=>'margin-right: 15px;','link'=>'domains.php']);
+		echo button::create(['type'=>'button','label'=>$text['button-back'],'icon'=>$settings->get('theme', 'button_icon_back'),'id'=>'btn_back','style'=>'margin-right: 15px;','link'=>'domains.php']);
 	}
 	if ($action == "update" && permission_exists('domain_setting_view')) {
-		echo button::create(['type'=>'button','label'=>$text['button-settings'],'icon'=>$_SESSION['theme']['button_icon_settings'],'id'=>'btn_back','style'=>'margin-right: 2px;','link'=>PROJECT_PATH.'/core/domain_settings/domain_settings.php?id='.urlencode($domain_uuid)]);
+		echo button::create(['type'=>'button','label'=>$text['button-settings'],'icon'=>$settings->get('theme', 'button_icon_settings'),'id'=>'btn_back','style'=>'margin-right: 2px;','link'=>PROJECT_PATH.'/core/domain_settings/domain_settings.php?id='.urlencode($domain_uuid)]);
 	}
 	if (permission_exists('domain_delete') && is_array($_SESSION['domains']) && @sizeof($_SESSION['domains']) > 1 && $domain_uuid != $_SESSION['domain_uuid']) {
-		echo button::create(['type'=>'button','label'=>$text['button-delete'],'icon'=>$_SESSION['theme']['button_icon_delete'],'onclick'=>"modal_open('modal-delete-domain','btn_delete_domain');"]);
+		echo button::create(['type'=>'button','label'=>$text['button-delete'],'icon'=>$settings->get('theme', 'button_icon_delete'),'onclick'=>"modal_open('modal-delete-domain','btn_delete_domain');"]);
 	}
 	if (permission_exists("domain_select") && is_array($_SESSION['domains']) && @sizeof($_SESSION['domains']) > 1) {
 		echo "<select id='domains' class='formfld' style='width: auto;' onchange=\"window.location.href='?id=' + document.getElementById('domains').options[document.getElementById('domains').selectedIndex].value;\">\n";
@@ -771,9 +631,9 @@ error_reporting(E_ALL);
 		echo "</select>";
 	}
 	if (permission_exists('domain_export')) {
-		echo button::create(['type'=>'button','label'=>$text['button-export'],'icon'=>$_SESSION['theme']['button_icon_export'],'link'=>PROJECT_PATH."/app/domain_export/index.php?id=".urlencode($domain_uuid)]);
+		echo button::create(['type'=>'button','label'=>$text['button-export'],'icon'=>$settings->get('theme', 'button_icon_export'),'link'=>PROJECT_PATH."/app/domain_export/index.php?id=".urlencode($domain_uuid)]);
 	}
-	echo button::create(['type'=>'submit','label'=>$text['button-save'],'icon'=>$_SESSION['theme']['button_icon_save'],'id'=>'btn_save','style'=>'margin-left: 3px;']);
+	echo button::create(['type'=>'submit','label'=>$text['button-save'],'icon'=>$settings->get('theme', 'button_icon_save'),'id'=>'btn_save','style'=>'margin-left: 3px;']);
 	echo "	</div>\n";
 	echo "	<div style='clear: both;'></div>\n";
 	echo "</div>\n";
@@ -801,77 +661,6 @@ error_reporting(E_ALL);
 	echo "	<input class='formfld' type='text' name='domain_name' maxlength='255' value=\"".escape($domain_name)."\">\n";
 	echo "<br />\n";
 	echo $text['description-name']."\n";
-	echo "</td>\n";
-	echo "</tr>\n";
-
-	if ('' != $astpp_customer) {
-	 echo "<tr>\n";
-	 echo "<td class='vncellreq' valign='top' align='left' nowrap='nowrap'>\n";
-	 echo " Customer Assign\n";
-	 echo "</td>\n";
-	 echo "<td class='vtable' align='left'>\n";
-	 echo " <select class='formfld' name='astpp_customer' >\n";
-	 echo "     <option value='" . $astpp_customer . "' selected>" . $astpp_customer . "</option>\n";
-
-	 echo " </select>\n";
-	 echo "<br />\n";
-	 echo "Customer Assign\n";
-	 echo "</td>\n";
-	 echo "</tr>\n";
-	} else {
-
-	 $sql    = "SELECT id, number, first_name, last_name from accounts where type=0 and deleted = 0 and reseller_id = 0 and domain_id is null";
-	 $result = mysqli_query($conn, $sql);
-
-	 echo "<tr>\n";
-	 echo "<td class='vncellreq' valign='top' align='left' nowrap='nowrap'>\n";
-	 echo " Customer Assign\n";
-	 echo "</td>\n";
-	 echo "<td class='vtable' align='left'>\n";
-	 echo " <select class='formfld' name='astpp_customer' >\n";
-	 echo "       <option value=''>Select Customer</option>";
-	 while ($acc = mysqli_fetch_array($result)) {
-	  if ($acc['number'] === $astpp_customer) {
-	   echo "       <option value='" . $acc['number'] . "' selected>" . $acc['number'] . " ( " . $acc['first_name'] . " " . $acc['last_name'] . " )</option>\n";
-	  } else {
-
-	   echo "       <option value='" . $acc['number'] . "'>" . $acc['number'] . " ( " . $acc['first_name'] . " " . $acc['last_name'] . " )</option>\n";
-	  }
-	 }
-	 echo " </select>\n";
-	 echo "<br />\n";
-	 echo "Customer Assign\n";
-	 echo "</td>\n";
-	 echo "</tr>\n";
-	}
-
-	echo "<tr>\n";
-	echo "<td class='vncellreq' valign='top' align='left' nowrap='nowrap'>\n";
-	echo " Gateway name\n";
-	echo "</td>\n";
-	echo "<td class='vtable' align='left'>\n";
-	echo "	<input class='formfld' type='text' name='gateway_name' maxlength='255' value=''>\n";
-	echo "<br />\n";
-	echo "</td>\n";
-	echo "</tr>\n";
-
-	echo "<tr>\n";
-	echo "<td class='vncellreq' valign='top' align='left' nowrap='nowrap'>\n";
-	echo "Gateway Username\n";
-	echo "</td>\n";
-	echo "<td class='vtable' align='left'>\n";
-	echo "	<input class='formfld' type='text' name='gateway_username' maxlength='255' value=''>\n";
-	echo "<br />\n";
-	echo "</td>\n";
-	echo "</tr>\n";
-
-	echo "<tr>\n";
-	echo "<td class='vncellreq' valign='top' align='left' nowrap='nowrap'>\n";
-	echo "Gateway password\n";
-	echo "</td>\n";
-	echo "<td class='vtable' align='left'>\n";
-	echo "	<input class='formfld' type='text' name='gateway_password' maxlength='255' value=''>\n";
-	echo "<br />\n";
 	echo "</td>\n";
 	echo "</tr>\n";
 

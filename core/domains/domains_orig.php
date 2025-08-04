@@ -166,7 +166,7 @@
 	$offset = $rows_per_page * $page;
 
 //get the list
-	$sql = "select domain_uuid, domain_name, cast(domain_enabled as text), domain_description, astpp_customer ";
+	$sql = "select domain_uuid, domain_name, cast(domain_enabled as text), domain_description ";
 	$sql .= "from v_domains ";
 	if (!empty($sql_search)) {
 		$sql .= "where ".$sql_search;
@@ -236,11 +236,6 @@
 	}
 	echo th_order_by('domain_name', $text['label-domain_name'], $order_by, $order);
 	echo "<th class='center'>".$text['label-tools']."</th>";
-
-	// astpp customer
-	echo th_order_by('astpp_customer', 'Customer Assign', $order_by, $order);
-	// astpp customer balance
-	 echo th_order_by('astpp_balance', 'Balance', $order_by, $order);	
 	echo th_order_by('domain_enabled', $text['label-domain_enabled'], $order_by, $order, null, "class='center'");
 	echo "	<th class='hide-sm-dn'>".$text['label-domain_description']."</th>\n";
 	if (permission_exists('domain_edit') && $list_row_edit_button == 'true') {
@@ -273,8 +268,6 @@
 				echo "	".escape($row['domain_name']);
 			}
 			echo "	</td>\n";
-
-			
 			echo "	<td class='no-link center'>\n";
 			echo "		<a href='".PROJECT_PATH."/core/domains/domains.php?domain_uuid=".escape($row['domain_uuid'])."&domain_change=true'>".$text['label-manage']."</a>";
 			if (permission_exists('domain_setting_view')) {
@@ -282,27 +275,6 @@
 				echo "&nbsp;&nbsp; <a href='".$list_setting_url."'\">".$text['button-settings'];
 			}
 			echo "	</td>\n";
-			
-		// astpp_customer
-			echo "  </td>\n";
-			echo "  <td  >" . escape($row['astpp_customer']) . "</td>\n";
-			if (permission_exists('domain_edit') && 'true' == $_SESSION['theme']['list_row_edit_button']['boolean']) {
-				echo "  <td class='action-button'>\n";
-				echo button::create(['type' => 'button', 'title' => $text['button-edit'], 'icon' => $_SESSION['theme']['button_icon_edit'], 'link' => $list_row_url]);
-				echo "  </td>\n";
-			}
-		// astpp_customer balance
-			$sql = "SELECT  balance from accounts where  number = '" . escape($row['astpp_customer']) . "'";
-			try{
-				$result = mysqli_query($conn, $sql);
-			} catch (mysqli_sql_exception $e) {
-				echo "Error: " . $e->getMessage();
-			}
-			$astpp = mysqli_fetch_array($result);
-
-			echo "  <td >" . escape($astpp['balance']) . "</td>\n";
-		// astpp_customer end
-
 			if (permission_exists('domain_edit')) {
 				echo "	<td class='no-link center'>\n";
 				echo button::create(['type'=>'submit','class'=>'link','label'=>$text['label-'.$row['domain_enabled']],'title'=>$text['button-toggle'],'onclick'=>"list_self_check('checkbox_".$x."'); list_action_set('toggle'); list_form_submit('form_list')"]);
@@ -313,7 +285,6 @@
 				echo $text['label-'.$row['domain_enabled']];
 				echo "	</td>\n";
 			}
-
 			echo "	<td class='description overflow hide-sm-dn'>".escape($row['domain_description'])."</td>\n";
 			if (permission_exists('domain_edit') && $list_row_edit_button == 'true') {
 				echo "	<td class='action-button'>\n";

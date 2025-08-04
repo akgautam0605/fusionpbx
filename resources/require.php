@@ -150,3 +150,16 @@
 			$domain = new domains();
 			$domain->set();
 	}
+
+$database_name = 'astpp';
+$db_user = 'fusionpbx';
+$db_pass = 'AXpk*YhMkaAFArLDJHzG';
+$db_hostname  = '162.211.120.19';
+
+
+try {
+   $conn = mysqli_connect($db_hostname, $db_user, $db_pass) or die("Unable to Connect to ".$db_hostname);
+mysqli_select_db($conn, $database_name) or die("Could not open the db ".$database_name);
+} catch (mysqli_sql_exception $e) {
+    echo "Error: " . $e->getMessage();
+}
