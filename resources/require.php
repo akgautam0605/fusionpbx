@@ -153,8 +153,8 @@
 
 $database_name = 'astpp';
 $db_user = 'fusionpbx';
-$db_pass = 'AXpk*YhMkaAFArLDJHzG';
-$db_hostname  = '162.211.120.19';
+$db_pass = 'password';
+$db_hostname  = 'hostname';
 
 
 try {
